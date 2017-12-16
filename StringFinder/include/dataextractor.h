@@ -14,7 +14,7 @@ public:
     //              < location,            <pref       , suf   >    > >
     typedef std::map< std::string, std::map<std::string, std::string> > StringData;
 
-    static DataExtractor& getInstance(std::string SearchString, std::string Location);
+    static DataExtractor& instance(std::string SearchString, std::string Location);
 
     struct FileData
     {
@@ -23,7 +23,9 @@ public:
     };
 
     DataExtractor operator=(DataExtractor& d) = delete;
+
     DataExtractor(const DataExtractor& d) = delete;
+
     ~DataExtractor();
 
     // extract final data

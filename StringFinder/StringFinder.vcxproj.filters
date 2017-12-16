@@ -32,5 +32,8 @@
     <ClInclude Include="include\dataextractor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\termcolor\termcolor.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

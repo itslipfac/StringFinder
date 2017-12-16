@@ -4,7 +4,7 @@
 
 using namespace std;
 
-DataExtractor &DataExtractor::getInstance(string SearchString, string Location)
+DataExtractor &DataExtractor::instance(string SearchString, string Location)
 {
     static DataExtractor dataExtractor{SearchString, Location};
 

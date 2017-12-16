@@ -5,22 +5,38 @@
 #include <vector>
 #include <string>
 #include <filesystem>
+#include <fstream>
+#include <streambuf>
 
 namespace fs = std::experimental::filesystem;
 
 class DataExtractor
 {
 public:
-    //              < location,            <pref       , suf   >    > >
-    typedef std::map< std::string, std::map<std::string, std::string> > StringData;
+    enum AffixType
+    {
+        NO_AFFIX_TYPE,
+        PREFIX,
+        SUFFIX
+    };
 
-    static DataExtractor& instance(std::string SearchString, std::string Location);
+    struct AffixData
+    {
+        void Clear();
+        
+        std::string prefix;
+        std::string suffix;
+    };
+
+    typedef std::map< size_t, AffixData > StringData;
 
     struct FileData
     {
-        std::string path;
-        StringData data;
+        fs::path   path;
+        StringData stringData;
     };
+    
+    static DataExtractor& instance(std::string SearchString, std::string Location);
 
     DataExtractor operator=(DataExtractor& d) = delete;
 
@@ -29,20 +45,37 @@ public:
     ~DataExtractor();
 
     // extract final data
-    std::vector<DataExtractor::FileData> ExtractData();
+    void ExtractData();
+
+    void DisplayData();
 
 private:
     DataExtractor(std::string SearchString, std::string Location);
 
     // extract data from file
-    DataExtractor::FileData ExtractFileData(fs::path File);
+    FileData ExtractFileData(const fs::path& File);
 
     // obtain files from directory
-    std::vector<fs::path> GetFileList(fs::path Path);
+    std::vector<fs::path> GetFileList(const fs::path& Path);
 
-    std::string     m_searchString;
-    std::string     m_location;
+    // reads file contents
+    std::string ReadFile(fs::path) const;
 
+    // computes available prefix chars
+    size_t GetAvailableAffixChars(const AffixType Type, const size_t Pos, 
+                                  const size_t ContentsSize);
+
+    // extracts the prefix and the suffix
+    AffixData GetAffixData(const std::string& Contents, const size_t Pos);
+
+    bool IsEmpty(const FileData& Data);
+
+    std::ostream& WriteString(std::ostream& OutStream, const std::string& CppString);
+
+    std::string           _searchString;
+    std::string           _location;
+    size_t                _searchStringSize;
+    std::vector<FileData> _extractedData;
 };
 
 #endif // DATAEXTRACTOR_H

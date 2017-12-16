@@ -34,17 +34,13 @@ DataExtractor::DataExtractor(string SearchString, string Location) : _searchStri
 
 }
 
-// extract final data
-vector<DataExtractor::FileData> DataExtractor::ExtractData()
+void DataExtractor::ExtractData()
 {
-    vector<FileData> finalData;
-
     fs::path path(_location);
 
     if ( !fs::exists(path) )
     {
         cout << red << "Location doesn't exit." << reset << endl;
-        return finalData;
     }
 
     // extract file list from the location provided; recursively iterate directories
@@ -53,13 +49,46 @@ vector<DataExtractor::FileData> DataExtractor::ExtractData()
     // extract data from each file
     for (auto&& fileName : fileList)
     {
-        finalData.push_back( ExtractFileData(fileName) );
+        FileData fileData = ExtractFileData(fileName);
+        
+        if ( !IsEmpty(fileData) )
+        {
+            _extractedData.push_back(ExtractFileData(fileName));
+        }
     }
-
-    return finalData;
 }
 
-// extract data from file
+void DataExtractor::DisplayData()
+{
+    size_t numberOfFiles = _extractedData.size();
+
+    if (0 == numberOfFiles)
+    {
+        cout << "No results to display for provided location: " << _location << endl;
+    }
+    else
+    {
+        cout << "Displaying data for <" << green << numberOfFiles << reset << ( (1 == numberOfFiles) ? "> file." : "> files." ) << endl;
+
+        for (auto&& fileData : _extractedData)
+        {
+            cout << "Displaying results inside <" << green << fileData.path << reset << ">:" << endl;
+
+            for (auto&& value : fileData.stringData)
+            {
+                cout << "Position: " << green << value.first << reset;
+                cout << "\t\tPrefix: ";
+                WriteString(cout, value.second.prefix);
+                cout << "\tSuffix: ";
+                WriteString(cout, value.second.suffix);
+                cout << endl;
+            }
+
+            cout << endl;
+        }
+    }
+}
+
 DataExtractor::FileData DataExtractor::ExtractFileData(const fs::path& FileName)
 {
     StringData   stringData{};
@@ -165,8 +194,15 @@ DataExtractor::AffixData DataExtractor::GetAffixData(const string& Contents, con
     return affixData;
 }
 
+bool DataExtractor::IsEmpty(const FileData& Data)
+{ 
+    return (Data.stringData.size() == 0);
+}
+
 ostream& DataExtractor::WriteString(ostream& OutStream, const string& CppString)
 {
+    cout << green;
+    
     for (auto ch : CppString)
     {
         switch (ch)
@@ -219,6 +255,8 @@ ostream& DataExtractor::WriteString(ostream& OutStream, const string& CppString)
             OutStream << ch;
         }
     }
+
+    cout << reset;
 
     return OutStream;
 }

@@ -45,13 +45,15 @@ public:
     ~DataExtractor();
 
     // extract final data
-    std::vector<DataExtractor::FileData> ExtractData();
+    void ExtractData();
+
+    void DisplayData();
 
 private:
     DataExtractor(std::string SearchString, std::string Location);
 
     // extract data from file
-    DataExtractor::FileData ExtractFileData(const fs::path& File);
+    FileData ExtractFileData(const fs::path& File);
 
     // obtain files from directory
     std::vector<fs::path> GetFileList(const fs::path& Path);
@@ -66,11 +68,14 @@ private:
     // extracts the prefix and the suffix
     AffixData GetAffixData(const std::string& Contents, const size_t Pos);
 
+    bool IsEmpty(const FileData& Data);
+
     std::ostream& WriteString(std::ostream& OutStream, const std::string& CppString);
 
-    std::string _searchString;
-    std::string _location;
-    size_t      _searchStringSize;
+    std::string           _searchString;
+    std::string           _location;
+    size_t                _searchStringSize;
+    std::vector<FileData> _extractedData;
 };
 
 #endif // DATAEXTRACTOR_H

@@ -1,8 +1,20 @@
 #include "dataextractor.h"
 
 #include <iostream>
+#include <termcolor\termcolor.hpp>
 
 using namespace std;
+using namespace termcolor;
+
+namespace {
+    constexpr int AFFIX_SIZE = 3;
+}
+
+void DataExtractor::AffixData::Clear()
+{
+    prefix.clear();
+    suffix.clear();
+}
 
 DataExtractor &DataExtractor::instance(string SearchString, string Location)
 {
@@ -16,8 +28,8 @@ DataExtractor::~DataExtractor()
     // clean data
 }
 
-DataExtractor::DataExtractor(string SearchString, string Location) : m_searchString{SearchString},
-    m_location{Location}
+DataExtractor::DataExtractor(string SearchString, string Location) : _searchString{ SearchString },
+    _location{ Location }, _searchStringSize{ SearchString.size() }
 {
 
 }
@@ -27,11 +39,11 @@ vector<DataExtractor::FileData> DataExtractor::ExtractData()
 {
     vector<FileData> finalData;
 
-    fs::path path(m_location);
+    fs::path path(_location);
 
     if ( !fs::exists(path) )
     {
-        cout << "Location doesn't exit." << endl;
+        cout << red << "Location doesn't exit." << reset << endl;
         return finalData;
     }
 
@@ -48,30 +60,31 @@ vector<DataExtractor::FileData> DataExtractor::ExtractData()
 }
 
 // extract data from file
-DataExtractor::FileData DataExtractor::ExtractFileData(fs::path FileName)
+DataExtractor::FileData DataExtractor::ExtractFileData(const fs::path& FileName)
 {
-    FileData fileData;
+    StringData   stringData{};
+    const string contents = ReadFile(FileName);
+    size_t       position = contents.find(_searchString);
 
-    // add logic
-    if ( fs::is_regular_file(FileName) )
+    while (position != string::npos)
     {
-        cout << "File: " << FileName.filename() << endl;
+        stringData[position] = GetAffixData(contents, position);
+
+        position = contents.find(_searchString, position + _searchStringSize);
     }
-    else if ( fs::is_directory(FileName) )
-    {
-       cout << "Dir: " << FileName.filename() << endl;
-    }
+
+    FileData fileData{ FileName, stringData };
 
     return fileData;
 }
 
-vector<fs::path> DataExtractor::GetFileList(fs::path Path)
+vector<fs::path> DataExtractor::GetFileList(const fs::path& Path)
 {
     vector<fs::path> fileList;
 
     if ( !fs::exists(Path) )
     {
-        cout << "Location doesn't exit." << endl;
+        cout << red << "Location doesn't exit." << reset << endl;
         return fileList;
     }
 
@@ -95,3 +108,119 @@ vector<fs::path> DataExtractor::GetFileList(fs::path Path)
 
     return fileList;
 }
+
+string DataExtractor::ReadFile(fs::path FileName) const
+{
+    ifstream contentStream(FileName);
+    string contentString;
+
+    contentStream.seekg(0, ios::end);
+    contentString.reserve(contentStream.tellg());
+    contentStream.seekg(0, ios::beg);
+
+    contentString.assign(istreambuf_iterator<char>(contentStream),
+                         istreambuf_iterator<char>());
+
+    return contentString;
+}
+
+size_t DataExtractor::GetAvailableAffixChars(const AffixType Type, const size_t Pos,
+                                             const size_t ContentsSize)
+{
+    size_t availableChars{ 0 };
+    
+    switch (Type)
+    {
+    case PREFIX:
+    {
+        availableChars = (Pos > 2) ? AFFIX_SIZE : Pos;
+        break;
+    }
+    case SUFFIX:
+    {
+        size_t difference = ContentsSize - (Pos + _searchStringSize);
+        
+        availableChars = (difference > 2) ? AFFIX_SIZE : difference;
+        break;
+    }
+    default:
+    {
+        cout << red << "Unsupported affix type." << reset << endl;
+        break;
+    }
+    }
+
+    return availableChars;
+}
+
+DataExtractor::AffixData DataExtractor::GetAffixData(const string& Contents, const size_t Pos)
+{
+    const size_t contentsSize = Contents.size();
+    const size_t availablePrefixChars = GetAvailableAffixChars(PREFIX, Pos, contentsSize);
+    const size_t availableSuffixChars = GetAvailableAffixChars(SUFFIX, Pos, contentsSize);
+
+    AffixData affixData{ Contents.substr(Pos - availablePrefixChars, availablePrefixChars),
+                         Contents.substr(Pos + _searchStringSize, availableSuffixChars) };
+
+    return affixData;
+}
+
+ostream& DataExtractor::WriteString(ostream& OutStream, const string& CppString)
+{
+    for (auto ch : CppString)
+    {
+        switch (ch)
+        {
+        case '\'':
+            OutStream << "\\'";
+            break;
+
+        case '\"':
+            OutStream << "\\\"";
+            break;
+
+        case '\?':
+            OutStream << "\\?";
+            break;
+
+        case '\\':
+            OutStream << "\\\\";
+            break;
+
+        case '\a':
+            OutStream << "\\a";
+            break;
+
+        case '\b':
+            OutStream << "\\b";
+            break;
+
+        case '\f':
+            OutStream << "\\f";
+            break;
+
+        case '\n':
+            OutStream << "\\n";
+            break;
+
+        case '\r':
+            OutStream << "\\r";
+            break;
+
+        case '\t':
+            OutStream << "\\t";
+            break;
+
+        case '\v':
+            OutStream << "\\v";
+            break;
+
+        default:
+            OutStream << ch;
+        }
+    }
+
+    return OutStream;
+}
+
+

@@ -11,3 +11,4 @@ StringFinder.exe path/to/file/or/dir search-string
 
 ## NOTES:
 - uses C++17 features
+- uses OpenMP for multithreading

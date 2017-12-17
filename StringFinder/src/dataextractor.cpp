@@ -25,13 +25,12 @@ DataExtractor &DataExtractor::instance(string SearchString, string Location)
 
 DataExtractor::~DataExtractor()
 {
-    // clean data
+    _extractedData.clear();
 }
 
 DataExtractor::DataExtractor(string SearchString, string Location) : _searchString{ SearchString },
     _location{ Location }, _searchStringSize{ SearchString.size() }
 {
-
 }
 
 void DataExtractor::ExtractData()
@@ -43,7 +42,7 @@ void DataExtractor::ExtractData()
         cout << red << "Location doesn't exit." << reset << endl;
     }
 
-    // extract file list from the location provided; recursively iterate directories
+    // obtains files located at the specified path
     vector<fs::path> fileList = GetFileList(path);
 
     // extract data from each file
@@ -53,7 +52,7 @@ void DataExtractor::ExtractData()
         
         if ( !IsEmpty(fileData) )
         {
-            _extractedData.push_back(ExtractFileData(fileName));
+            _extractedData.push_back(fileData);
         }
     }
 }
@@ -78,9 +77,9 @@ void DataExtractor::DisplayData()
             {
                 cout << "Position: " << green << value.first << reset;
                 cout << "\t\tPrefix: ";
-                WriteString(cout, value.second.prefix);
+                DisplayString(cout, value.second.prefix);
                 cout << "\tSuffix: ";
-                WriteString(cout, value.second.suffix);
+                DisplayString(cout, value.second.suffix);
                 cout << endl;
             }
 
@@ -99,7 +98,8 @@ DataExtractor::FileData DataExtractor::ExtractFileData(const fs::path& FileName)
     {
         stringData[position] = GetAffixData(contents, position);
 
-        position = contents.find(_searchString, position + _searchStringSize);
+        // search starting from next character
+        position = contents.find(_searchString, ++position);
     }
 
     FileData fileData{ FileName, stringData };
@@ -141,14 +141,23 @@ vector<fs::path> DataExtractor::GetFileList(const fs::path& Path)
 string DataExtractor::ReadFile(fs::path FileName) const
 {
     ifstream contentStream(FileName);
-    string contentString;
+    string   contentString{};
 
-    contentStream.seekg(0, ios::end);
-    contentString.reserve(contentStream.tellg());
-    contentStream.seekg(0, ios::beg);
+    if (contentStream.good())
+    {
+        // get length of file
+        contentStream.seekg(0, ios::end);
+        contentString.reserve(contentStream.tellg());
+        contentStream.seekg(0, ios::beg);
 
-    contentString.assign(istreambuf_iterator<char>(contentStream),
-                         istreambuf_iterator<char>());
+        // read data
+        contentString.assign(istreambuf_iterator<char>(contentStream),
+                             istreambuf_iterator<char>());
+    }
+    else
+    {
+        cout << red << "File: " << FileName << " cannot be open.";
+    }
 
     return contentString;
 }
@@ -199,9 +208,9 @@ bool DataExtractor::IsEmpty(const FileData& Data)
     return (Data.stringData.size() == 0);
 }
 
-ostream& DataExtractor::WriteString(ostream& OutStream, const string& CppString)
+void DataExtractor::DisplayString(ostream& OutStream, const string& CppString)
 {
-    cout << green;
+    OutStream << green;
     
     for (auto ch : CppString)
     {
@@ -256,9 +265,7 @@ ostream& DataExtractor::WriteString(ostream& OutStream, const string& CppString)
         }
     }
 
-    cout << reset;
-
-    return OutStream;
+    OutStream << reset;
 }
 
 

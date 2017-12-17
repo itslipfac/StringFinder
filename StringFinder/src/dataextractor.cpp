@@ -1,14 +1,12 @@
 #include "dataextractor.h"
 
 #include <iostream>
+#include <algorithm>
+#include <omp.h>
 #include <termcolor\termcolor.hpp>
 
 using namespace std;
 using namespace termcolor;
-
-namespace {
-    constexpr int AFFIX_SIZE = 3;
-}
 
 void DataExtractor::AffixData::Clear()
 {
@@ -41,18 +39,40 @@ void DataExtractor::ExtractData()
     {
         cout << red << "Location doesn't exit." << reset << endl;
     }
-
-    // obtains files located at the specified path
-    vector<fs::path> fileList = GetFileList(path);
-
-    // extract data from each file
-    for (auto&& fileName : fileList)
+#pragma omp parallel num_threads(4)
     {
-        FileData fileData = ExtractFileData(fileName);
-        
-        if ( !IsEmpty(fileData) )
+        // obtains files located at the specified path
+        vector<fs::path> fileList = GetFileList(path);
+#pragma omp for
+        // extract data from each file
+        for (int i = 0; i < fileList.size(); ++i)
         {
-            _extractedData.push_back(fileData);
+            shared_ptr<FileData> fileData{};
+            uintmax_t            fileSize{ 0 };
+
+            try
+            {
+                fileSize = fs::file_size(fileList[i]);
+            }
+            catch (fs::filesystem_error& e)
+            {
+                std::cout << red << e.what() << reset << endl;
+                continue;
+            }
+            
+            if (fileSize < MAX_FILE_SIZE)
+            {
+                ExtractFileData(fileList[i], fileData);
+            }
+            else
+            {
+                ExtractBigFileData(fileList[i], fileData);
+            }
+
+            if (!IsEmpty(fileData))
+            {
+                _extractedData.push_back(fileData);
+            }
         }
     }
 }
@@ -67,13 +87,14 @@ void DataExtractor::DisplayData()
     }
     else
     {
-        cout << "Displaying data for <" << green << numberOfFiles << reset << ( (1 == numberOfFiles) ? "> file." : "> files." ) << endl;
+        cout << "Displaying data for search string: <" << green << _searchString << reset << "> found in: <" 
+             << green << numberOfFiles << reset << ( (1 == numberOfFiles) ? "> file." : "> files." ) << endl;
 
         for (auto&& fileData : _extractedData)
         {
-            cout << "Displaying results inside <" << green << fileData.path << reset << ">:" << endl;
+            cout << "Displaying data found inside <" << green << fileData->path << reset << ">:" << endl;
 
-            for (auto&& value : fileData.stringData)
+            for (auto&& value : fileData->stringData)
             {
                 cout << "Position: " << green << value.first << reset;
                 cout << "\t\tPrefix: ";
@@ -88,7 +109,7 @@ void DataExtractor::DisplayData()
     }
 }
 
-DataExtractor::FileData DataExtractor::ExtractFileData(const fs::path& FileName)
+void DataExtractor::ExtractFileData(const fs::path& FileName, shared_ptr<FileData>& Data)
 {
     StringData   stringData{};
     const string contents = ReadFile(FileName);
@@ -102,10 +123,81 @@ DataExtractor::FileData DataExtractor::ExtractFileData(const fs::path& FileName)
         position = contents.find(_searchString, ++position);
     }
 
-    FileData fileData{ FileName, stringData };
-
-    return fileData;
+    Data = make_shared<FileData>(FileName, stringData);
 }
+
+void DataExtractor::ExtractBigFileData(const fs::path& FileName, shared_ptr<FileData>& Data)
+{
+    StringData stringData{};
+    char       block[BLOCK_SIZE] = { 0 };
+    string     blockString{};
+    char       buffer[BUFFER_SIZE] = { 0 };
+    string     bufferString{};
+    ifstream   contentStream(FileName);
+    int        blocksCount = 0;
+
+    // get content length
+    contentStream.seekg (0, contentStream.end);
+    streamoff length = contentStream.tellg();
+    contentStream.seekg (0, contentStream.beg);
+    
+    while (contentStream.good())
+    {
+        // reset block contents
+        fill(block, block + BLOCK_SIZE, 0);
+
+        // read block by block
+        if (BLOCK_SIZE <= length)
+        {
+            // also read a buffer from the previous block to make sure no results were omitted
+            if (blocksCount > 0)
+            {
+                // ... start reading from the proper position 
+                contentStream.seekg( blocksCount * (BLOCK_SIZE - BUFFER_SIZE) );
+                contentStream.read(block, BLOCK_SIZE);
+                contentStream.read(buffer, BUFFER_SIZE);
+            }
+            else
+            {
+                contentStream.read(block, BLOCK_SIZE);
+            }
+
+            blockString.assign(block, block + BLOCK_SIZE);
+            bufferString.assign(buffer, buffer + BUFFER_SIZE);
+        }
+        else
+        {
+            contentStream.read(block, length);
+            blockString.assign(block, length);
+        }      
+
+        size_t position = blockString.find(_searchString);
+
+        // find occurrences of search string in current block
+        while (position != string::npos)
+        {
+            size_t positionInFile = ( ( blocksCount * (BLOCK_SIZE - BUFFER_SIZE) ) + position );
+
+            if (0 == blocksCount)
+            {
+                // this is the first block
+                stringData[positionInFile] = GetAffixData(blockString, position);
+            }
+            else
+            {
+                stringData[positionInFile] = GetAffixData(bufferString + blockString, position + BUFFER_SIZE);
+            }
+
+            // search starting from next character
+            position = blockString.find(_searchString, ++position);
+        }
+
+        ++blocksCount;
+    }
+
+    Data = make_shared<FileData>(FileName, stringData);
+}
+
 
 vector<fs::path> DataExtractor::GetFileList(const fs::path& Path)
 {
@@ -203,9 +295,9 @@ DataExtractor::AffixData DataExtractor::GetAffixData(const string& Contents, con
     return affixData;
 }
 
-bool DataExtractor::IsEmpty(const FileData& Data)
+bool DataExtractor::IsEmpty(const shared_ptr<FileData>& Data)
 { 
-    return (Data.stringData.size() == 0);
+    return (Data->stringData.size() == 0);
 }
 
 void DataExtractor::DisplayString(ostream& OutStream, const string& CppString)
@@ -268,4 +360,10 @@ void DataExtractor::DisplayString(ostream& OutStream, const string& CppString)
     OutStream << reset;
 }
 
+DataExtractor::FileData::FileData() : path{}, stringData{}
+{
+}
 
+DataExtractor::FileData::FileData(fs::path Path, StringData Data) : path{ Path }, stringData{ Data }
+{
+}

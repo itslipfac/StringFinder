@@ -10,6 +10,13 @@
 
 namespace fs = std::experimental::filesystem;
 
+namespace {
+    constexpr int       AFFIX_SIZE = 3;
+    constexpr uintmax_t MAX_FILE_SIZE = 104857600;  // in bytes; 100 MB
+    constexpr unsigned  BLOCK_SIZE = sizeof(char) * 5242880;
+    constexpr unsigned  BUFFER_SIZE = 100;
+    constexpr int       NUM_THREADS = 4;
+}
 // Class used to extract positions, prefixes and suffixes for all occurrences  of a 
 // search string from file/files located at specified location; 
 // If the location represent a directory, all files located inside it (including subdirectories)
@@ -39,6 +46,10 @@ public:
     // Holds the path of a file and the search string data found inside it
     struct FileData
     {
+        FileData();
+
+        FileData(fs::path Path, StringData Data);
+        
         fs::path   path;
         StringData stringData;
     };
@@ -63,7 +74,11 @@ private:
     DataExtractor(std::string SearchString, std::string Location);
 
     // Finds search string positions inside a single file and their associated affixes
-    FileData ExtractFileData(const fs::path& File);
+    void ExtractFileData(const fs::path& File, std::shared_ptr<FileData>& FileData);
+
+    // Finds search string positions inside a single file and their associated affixes for files over 100 MB
+    // Decreases memory usage but increases processing time
+    void ExtractBigFileData(const fs::path& FileName, std::shared_ptr<FileData>& Data);
 
     // Obtains a list of files located at the specified location (recursively iterates through directories)
     std::vector<fs::path> GetFileList(const fs::path& Path);
@@ -79,7 +94,7 @@ private:
     AffixData GetAffixData(const std::string& Contents, const size_t Pos);
 
     // Verifies if the search string was found in a file
-    bool IsEmpty(const FileData& Data);
+    bool IsEmpty(const std::shared_ptr<FileData>& Data);
 
     // Properly displays a string containing special characters on standard output; 
     // (e.g. tabs will be displayed as '\t', newlines as '\n' etc.)
@@ -88,7 +103,7 @@ private:
     std::string           _searchString;
     std::string           _location;
     size_t                _searchStringSize;
-    std::vector<FileData> _extractedData;
+    std::vector< std::shared_ptr<FileData> > _extractedData;
 };
 
 #endif // DATAEXTRACTOR_H

@@ -4,7 +4,7 @@
 Application used to search for strings inside files.
 
 ## Usage:
-StringFinder.exe <path> <search_string>
+StringFinder.exe path/to/file/or/dir search-string
 
 ## External libraries:
 - termcolor: https://github.com/ikalnytskyi/termcolor

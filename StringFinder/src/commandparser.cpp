@@ -129,6 +129,3 @@ void CommandParser::PrintHelp() const
 {
     cout << yellow << "Usage: StringFinder.exe <path> <search_string>" << reset << endl;
 }
-
-
-

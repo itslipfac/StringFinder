@@ -39,6 +39,7 @@ private:
     // Validates the string length and content
     bool IsSearchStringValid(const char * const SearchString) const;
 
+    // TODO: implement as per requirements
     bool ContainsOnlyValidChars(const char * const SearchString) const;
 
     // Show application usage
